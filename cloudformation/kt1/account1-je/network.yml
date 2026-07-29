@@ -30,19 +30,19 @@ Resources:
         - Key: Name
           Value: subnet-jeA0S9V101pr1a-001
 
-  RT1a:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref Vpc1Id
-      Tags:
-        - Key: Name
-          Value: subnet-jeA0S9V101pr1a-001-rtb001
+  # RT1a:
+  #   Type: AWS::EC2::RouteTable
+  #   Properties:
+  #     VpcId: !Ref Vpc1Id
+  #     Tags:
+  #       - Key: Name
+  #         Value: subnet-jeA0S9V101pr1a-001-rtb001
 
-  Assoc1a:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref Subnet1a
-      RouteTableId: !Ref RT1a
+  # Assoc1a:
+  #   Type: AWS::EC2::SubnetRouteTableAssociation
+  #   Properties:
+  #     SubnetId: !Ref Subnet1a
+  #     RouteTableId: !Ref RT1a
   
   #############################################
   RT1a - Route Test (TGW)
