@@ -632,10 +632,10 @@ Outputs:
     Export:
       Name: subnet1d-id
 
-  RT1aId:
-    Value: !Ref RT1a
-    Export:
-      Name: rt1a-id
+  # RT1aId:
+  #   Value: !Ref RT1a
+  #   Export:
+  #     Name: rt1a-id
 
   RT1cId:
     Value: !Ref RT1c
