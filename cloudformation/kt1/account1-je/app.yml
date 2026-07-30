@@ -1,87 +1,56 @@
 AWSTemplateFormatVersion: '2010-09-09'
+Description: Internal NLB Stack
 
 Resources:
 
-  EcsLogGroup:
-    Type: AWS::Logs::LogGroup
+  NetworkLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      LogGroupName: /ecs/miyazato-kt1-account1-nginx-v2
-      RetentionInDays: 7
+      Name: vesta-internal-nlb
+      Type: network
+      Scheme: internal
+      Subnets:
+        - !ImportValue subnet1a-id
+        - !ImportValue subnet1c-id
+        - !ImportValue subnet1d-id
 
-  EcsCluster:
-    Type: AWS::ECS::Cluster
+  NlbTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      ClusterName: miyazato-kt1-account1-cluster
+      Name: vesta-tg
+      TargetType: ip
+      Protocol: TCP
+      Port: 80
+      VpcId: !ImportValue vpc1-id
+      HealthCheckProtocol: TCP
+      HealthCheckPort: traffic-port
 
-  EcsTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    DependsOn:
-      - EcsLogGroup
-
+  NlbListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      Family: miyazato-kt1-account1-nginx-task
-
-      RequiresCompatibilities:
-        - FARGATE
-
-      NetworkMode: awsvpc
-
-      Cpu: '256'
-      Memory: '512'
-
-      ExecutionRoleArn: !ImportValue "miyazato-kt1-EcsTaskExecutionRoleArn"
-
-      ContainerDefinitions:
-        - Name: nginx-container
-
-          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/miyazato-kt1-nginx:v8"
-
-          Essential: true
-
-          PortMappings:
-            - ContainerPort: 80
-              Protocol: tcp
-
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: /ecs/miyazato-kt1-account1-nginx-v2
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-
-  EcsService:
-    Type: AWS::ECS::Service
-    DependsOn:
-      - EcsTaskDefinition
-
-    Properties:
-      ServiceName: miyazato-kt1-account1-nginx-service
-
-      Cluster: !Ref EcsCluster
-
-      TaskDefinition: !Ref EcsTaskDefinition
-
-      LaunchType: FARGATE
-
-      DesiredCount: 0
-
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          AssignPublicIp: DISABLED
-
-          Subnets:
-            - !ImportValue "miyazato-kt1-PrivateSubnet1aId"
-
-          SecurityGroups:
-            - !ImportValue "miyazato-kt1-EcsSecurityGroupId"
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Protocol: TCP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref NlbTargetGroup
 
 Outputs:
 
-  ClusterName:
-    Value: !Ref EcsCluster
+  NlbArn:
+    Description: Network Load Balancer ARN
+    Value: !Ref NetworkLoadBalancer
+    Export:
+      Name: vesta-nlb-arn
 
-  ServiceName:
-    Value: !Ref EcsService
+  NlbDns:
+    Description: Network Load Balancer DNS Name
+    Value: !GetAtt NetworkLoadBalancer.DNSName
+    Export:
+      Name: vesta-nlb-dns
 
-  LogGroupName:
-    Value: !Ref EcsLogGroup
+  TargetGroupArn:
+    Description: Target Group ARN
+    Value: !Ref NlbTargetGroup
+    Export:
+      Name: vesta-tg-arn
