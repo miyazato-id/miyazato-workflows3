@@ -1,7 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Internal NLB Stack
+Description: Internal NLB + API Gateway + VPC Link + Cognito Authorizer
 
 Resources:
+
+  #####################################
+  # Network Load Balancer
+  #####################################
 
   NetworkLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -34,23 +38,30 @@ Resources:
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref NlbTargetGroup
-          
-# AWSTemplateFormatVersion: '2010-09-09'
-# Description: API Gateway + VPC Link + Cognito Authorizer
 
-# Resources:
+  #####################################
+  # API Gateway VPC Link
+  #####################################
 
   ApiGatewayVpcLink:
     Type: AWS::ApiGateway::VpcLink
     Properties:
       Name: my-vpc-link
       TargetArns:
-        - !ImportValue vesta-nlb-arn
+        - !Ref NetworkLoadBalancer
+
+  #####################################
+  # REST API
+  #####################################
 
   RestApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
       Name: MyRestApi
+
+  #####################################
+  # Cognito Authorizer
+  #####################################
 
   CognitoAuthorizer:
     Type: AWS::ApiGateway::Authorizer
@@ -62,12 +73,20 @@ Resources:
       ProviderARNs:
         - !ImportValue Vesta-UserPoolArn
 
+  #####################################
+  # Proxy Resource
+  #####################################
+
   ApiResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref RestApi
       ParentId: !GetAtt RestApi.RootResourceId
       PathPart: '{proxy+}'
+
+  #####################################
+  # Proxy Method
+  #####################################
 
   ApiMethod:
     Type: AWS::ApiGateway::Method
@@ -84,19 +103,22 @@ Resources:
 
       Integration:
         Type: HTTP_PROXY
-        IntegrationHttpMethod: ANY
+        IntegrationHttpMethod: GET
 
         Uri:
           Fn::Sub:
             - 'http://${NlbDnsName}/{proxy}'
-            - NlbDnsName:
-                Fn::ImportValue: vesta-nlb-dns
+            - NlbDnsName: !GetAtt NetworkLoadBalancer.DNSName
 
         ConnectionType: VPC_LINK
         ConnectionId: !Ref ApiGatewayVpcLink
 
         RequestParameters:
           integration.request.path.proxy: 'method.request.path.proxy'
+
+  #####################################
+  # Deployment
+  #####################################
 
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
@@ -106,6 +128,10 @@ Resources:
     Properties:
       RestApiId: !Ref RestApi
 
+  #####################################
+  # Stage
+  #####################################
+
   ApiStage:
     Type: AWS::ApiGateway::Stage
     Properties:
@@ -113,7 +139,30 @@ Resources:
       DeploymentId: !Ref ApiDeployment
       StageName: prod
 
-  
+  #####################################
+  # CloudWatch Logging
+  #####################################
+
+  ApiAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchRole.Arn
+
+  ApiGatewayCloudWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: apigateway-cloudwatch-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+
 Outputs:
 
   NlbArn:
@@ -133,6 +182,7 @@ Outputs:
     Value: !Ref NlbTargetGroup
     Export:
       Name: vesta-tg-arn
+
   ApiId:
     Description: API Gateway ID
     Value: !Ref RestApi
@@ -141,8 +191,7 @@ Outputs:
 
   ApiUrl:
     Description: API Gateway URL
-    Value:
-      Fn::Sub: 'https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/prod'
+    Value: !Sub "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
 
   CognitoAuthorizerId:
     Description: Cognito Authorizer ID
