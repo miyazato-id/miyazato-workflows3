@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Internal NLB + API Gateway + VPC Link + Cognito Authorizer
+Description: Internal NLB + API Gateway + VPC Link
 
 Resources:
 
@@ -60,20 +60,6 @@ Resources:
       Name: MyRestApi
 
   #####################################
-  # Cognito Authorizer
-  #####################################
-
-  CognitoAuthorizer:
-    Type: AWS::ApiGateway::Authorizer
-    Properties:
-      Name: VestaCognitoAuthorizer
-      RestApiId: !Ref RestApi
-      Type: COGNITO_USER_POOLS
-      IdentitySource: method.request.header.Authorization
-      ProviderARNs:
-        - !ImportValue Vesta-UserPoolArn
-
-  #####################################
   # Proxy Resource
   #####################################
 
@@ -95,8 +81,7 @@ Resources:
       ResourceId: !Ref ApiResource
       HttpMethod: ANY
 
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
+      AuthorizationType: NONE
 
       RequestParameters:
         method.request.path.proxy: true
@@ -124,7 +109,6 @@ Resources:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
       - ApiMethod
-      - CognitoAuthorizer
     Properties:
       RestApiId: !Ref RestApi
 
@@ -140,7 +124,7 @@ Resources:
       StageName: prod
 
   #####################################
-  # CloudWatch Logging
+  # API Gateway CloudWatch Logs
   #####################################
 
   ApiAccount:
@@ -192,7 +176,3 @@ Outputs:
   ApiUrl:
     Description: API Gateway URL
     Value: !Sub "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
-
-  CognitoAuthorizerId:
-    Description: Cognito Authorizer ID
-    Value: !Ref CognitoAuthorizer
