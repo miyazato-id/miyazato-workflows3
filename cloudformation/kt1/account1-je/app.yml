@@ -44,7 +44,7 @@ Resources:
         Status: Enabled
 
   #####################################
-  # API Gateway Log S3 Bucket (一時無効化)
+  # API Gateway Log S3 Bucket
   #####################################
 
   # ApiGatewayLogBucket:
@@ -86,7 +86,7 @@ Resources:
                 s3:x-amz-acl: bucket-owner-full-control
 
   #####################################
-  # Firehose IAM Role (一時無効化)
+  # Firehose IAM Role
   #####################################
 
   # FirehoseRole:
@@ -99,7 +99,7 @@ Resources:
   #           Principal:
   #             Service: ://amazonaws.com
   #           Action: sts:AssumeRole
-  # 
+
   #     Policies:
   #       - PolicyName: FirehoseS3Policy
   #         PolicyDocument:
@@ -118,7 +118,7 @@ Resources:
   #                 - !Sub "${ApiGatewayLogBucket.Arn}/*"
 
   #####################################
-  # Firehose Delivery Stream (一時無効化)
+  # Firehose Delivery Stream
   #####################################
 
   # ApiGatewayLogDeliveryStream:
@@ -126,7 +126,7 @@ Resources:
   #   Properties:
   #     DeliveryStreamName: !Sub "${AWS::StackName}-apigw-delivery-stream"
   #     DeliveryStreamType: DirectPut
-  # 
+
   #     ExtendedS3DestinationConfiguration:
   #       BucketARN: !GetAtt ApiGatewayLogBucket.Arn
   #       Prefix: apigateway/
@@ -138,7 +138,7 @@ Resources:
   #       RoleARN: !GetAtt FirehoseRole.Arn
 
   #####################################
-  # CloudWatch Logs -> Firehose Role (一時無効化)
+  # CloudWatch Logs -> Firehose Role
   #####################################
 
   # LogsToFirehoseRole:
@@ -151,7 +151,7 @@ Resources:
   #           Principal:
   #             Service: ://amazonaws.com
   #           Action: sts:AssumeRole
-  # 
+
   #     Policies:
   #       - PolicyName: CWLogsToFirehose
   #         PolicyDocument:
@@ -162,24 +162,6 @@ Resources:
   #                 - firehose:PutRecord
   #                 - firehose:PutRecordBatch
   #               Resource: !Sub "arn:${AWS::Partition}:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${AWS::StackName}-apigw-delivery-stream"
-
-  #####################################
-  # CloudWatch Logs Subscription (一時無効化)
-  #####################################
-
-  # ApiGatewayLogSubscription:
-  #   Type: AWS::Logs::SubscriptionFilter
-  #   DependsOn:
-  #     - ApiGatewayAccessLogGroup
-  #     - ApiGatewayLogDeliveryStream
-  #     - LogsToFirehoseRole
-  #     - ApiStage
-  # 
-  #   Properties:
-  #     LogGroupName: !Ref ApiGatewayAccessLogGroup
-  #     FilterPattern: ""
-  #     DestinationArn: !Sub "arn:${AWS::Partition}:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${AWS::StackName}-apigw-delivery-stream"
-  #     RoleArn: !GetAtt LogsToFirehoseRole.Arn
 
   #####################################
   # Network Load Balancer
