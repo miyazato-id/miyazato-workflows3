@@ -21,7 +21,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: apigateway.amazonaws.com
+              Service: ://amazonaws.com
             Action: sts:AssumeRole
 
       ManagedPolicyArns:
@@ -39,7 +39,9 @@ Resources:
   NlbAccessLogBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${AWS::AccountId}-${AWS::StackName}-nlb-accesslog"
+      BucketName: !Sub "${AWS::StackName}-nlb-accesslog"
+      VersioningConfiguration:
+        Status: Enabled
 
   #####################################
   # API Gateway Log S3 Bucket
@@ -48,7 +50,9 @@ Resources:
   ApiGatewayLogBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "${AWS::AccountId}-${AWS::StackName}-apigw-accesslog"
+      BucketName: !Sub "${AWS::StackName}-apigw-accesslog"
+      VersioningConfiguration:
+        Status: Enabled
 
   #####################################
   # NLB Bucket Policy
@@ -64,7 +68,7 @@ Resources:
           - Sid: AWSLogDeliveryAclCheck
             Effect: Allow
             Principal:
-              Service: delivery.logs.amazonaws.com
+              Service: ://amazonaws.com
             Action:
               - s3:GetBucketAcl
               - s3:ListBucket
@@ -73,7 +77,7 @@ Resources:
           - Sid: AWSLogDeliveryWrite
             Effect: Allow
             Principal:
-              Service: delivery.logs.amazonaws.com
+              Service: ://amazonaws.com
             Action:
               - s3:PutObject
             Resource: !Sub "${NlbAccessLogBucket.Arn}/*"
@@ -93,7 +97,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: firehose.amazonaws.com
+              Service: ://amazonaws.com
             Action: sts:AssumeRole
 
       Policies:
@@ -126,11 +130,9 @@ Resources:
         BucketARN: !GetAtt ApiGatewayLogBucket.Arn
         Prefix: apigateway/
         ErrorOutputPrefix: errors/
-
         BufferingHints:
           IntervalInSeconds: 60
           SizeInMBs: 5
-
         CompressionFormat: GZIP
         RoleARN: !GetAtt FirehoseRole.Arn
 
@@ -146,7 +148,8 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: logs.amazonaws.com
+              Service:
+                - ://amazonaws.com
             Action: sts:AssumeRole
 
       Policies:
@@ -168,7 +171,6 @@ Resources:
     Type: AWS::Logs::SubscriptionFilter
     DependsOn:
       - ApiGatewayLogDeliveryStream
-      - LogsToFirehoseRole
 
     Properties:
       LogGroupName: !Ref ApiGatewayAccessLogGroup
@@ -261,27 +263,6 @@ Resources:
       Name: MyRestApi
 
   #####################################
-  # Root Method
-  #####################################
-
-  RootMethod:
-    Type: AWS::ApiGateway::Method
-
-    Properties:
-      RestApiId: !Ref RestApi
-      ResourceId: !GetAtt RestApi.RootResourceId
-      HttpMethod: ANY
-      AuthorizationType: NONE
-
-      Integration:
-        Type: HTTP_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub "http://${NetworkLoadBalancer.DNSName}"
-
-        ConnectionType: VPC_LINK
-        ConnectionId: !Ref ApiGatewayVpcLink
-
-  #####################################
   # Proxy Resource
   #####################################
 
@@ -291,7 +272,7 @@ Resources:
     Properties:
       RestApiId: !Ref RestApi
       ParentId: !GetAtt RestApi.RootResourceId
-      PathPart: "{proxy+}"
+      PathPart: '{proxy+}'
 
   #####################################
   # Proxy Method
@@ -311,8 +292,12 @@ Resources:
 
       Integration:
         Type: HTTP_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub "http://${NetworkLoadBalancer.DNSName}/{proxy}"
+        IntegrationHttpMethod: ANY
+
+        Uri:
+          Fn::Sub:
+            - "http://${NlbDnsName}/{proxy}"
+            - NlbDnsName: !GetAtt NetworkLoadBalancer.DNSName
 
         ConnectionType: VPC_LINK
         ConnectionId: !Ref ApiGatewayVpcLink
@@ -328,7 +313,6 @@ Resources:
     Type: AWS::ApiGateway::Deployment
 
     DependsOn:
-      - RootMethod
       - ApiMethod
 
     Properties:
@@ -343,171 +327,11 @@ Resources:
 
     DependsOn:
       - ApiGatewayAccount
-      - ApiGatewayAccessLogGroup
 
     Properties:
       RestApiId: !Ref RestApi
       DeploymentId: !Ref ApiDeployment
       StageName: prod
-
       AccessLogSetting:
         DestinationArn: !GetAtt ApiGatewayAccessLogGroup.Arn
-
-        Format: >
-          {
-            "requestId":"$context.requestId",
-            "ip":"$context.identity.sourceIp",
-            "httpMethod":"$context.httpMethod",
-            "resourcePath":"$context.resourcePath",
-            "status":"$context.status"
-          }
-
-      MethodSettings:
-        - ResourcePath: "/*"
-          HttpMethod: "*"
-          LoggingLevel: INFO
-          MetricsEnabled: true
-
-  #####################################
-  # ECS Cluster
-  #####################################
-
-  EcsCluster:
-    Type: AWS::ECS::Cluster
-
-    Properties:
-      ClusterName: vesta-ecs-cluster
-
-  #####################################
-  # ECS Task Definition
-  #####################################
-
-  EcsTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-
-    Properties:
-      Family: vesta-taskdef
-
-      RequiresCompatibilities:
-        - FARGATE
-
-      NetworkMode: awsvpc
-
-      Cpu: "256"
-      Memory: "512"
-
-      ExecutionRoleArn: arn:aws:iam::473427586283:role/ecsTaskExecutionRole
-
-      ContainerDefinitions:
-        - Name: app
-          Image: 473427586283.dkr.ecr.ap-northeast-1.amazonaws.com/my-nginx:latest
-          Essential: true
-
-          PortMappings:
-            - ContainerPort: 80
-              Protocol: tcp
-
-  #####################################
-  # ECS Security Group
-  #####################################
-
-  EcsServiceSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-
-    Properties:
-      GroupDescription: ECS Service Security Group
-
-      VpcId: !ImportValue vpc1-id
-
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 10.0.0.0/16
-
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-
-  #####################################
-  # ECS Service
-  #####################################
-
-  EcsService:
-    Type: AWS::ECS::Service
-
-    DependsOn:
-      - EcsTaskDefinition
-      - NlbListener
-
-    Properties:
-      ServiceName: vesta-service
-
-      Cluster: !Ref EcsCluster
-
-      TaskDefinition: !Ref EcsTaskDefinition
-
-      LaunchType: FARGATE
-
-      DesiredCount: 1
-
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          AssignPublicIp: DISABLED
-
-          Subnets:
-            - !ImportValue subnet2a-id
-            - !ImportValue subnet2c-id
-            - !ImportValue subnet2d-id
-
-          SecurityGroups:
-            - !Ref EcsServiceSecurityGroup
-
-      LoadBalancers:
-        - TargetGroupArn: !Ref NlbTargetGroup
-          ContainerName: app
-          ContainerPort: 80
-
-Outputs:
-
-  NlbArn:
-    Description: Network Load Balancer ARN
-    Value: !Ref NetworkLoadBalancer
-    Export:
-      Name: vesta-nlb-arn
-
-  NlbDns:
-    Description: Network Load Balancer DNS Name
-    Value: !GetAtt NetworkLoadBalancer.DNSName
-    Export:
-      Name: vesta-nlb-dns
-
-  TargetGroupArn:
-    Description: Target Group ARN
-    Value: !Ref NlbTargetGroup
-    Export:
-      Name: vesta-tg-arn
-
-  ApiId:
-    Description: API Gateway ID
-    Value: !Ref RestApi
-    Export:
-      Name: Vesta-RestApiId
-
-  ApiUrl:
-    Description: API Gateway URL
-    Value: !Sub "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
-
-  ApiGatewayLogS3Bucket:
-    Description: API Gateway Access Log Bucket
-    Value: !Ref ApiGatewayLogBucket
-
-  ClusterName:
-    Value: !Ref EcsCluster
-    Export:
-      Name: vesta-ecs-cluster
-
-  ServiceName:
-    Value: !GetAtt EcsService.Name
-    Export:
-      Name: vesta-ecs-service
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
