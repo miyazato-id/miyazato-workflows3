@@ -122,6 +122,85 @@ Resources:
       RestApiId: !Ref RestApi
       DeploymentId: !Ref ApiDeployment
       StageName: prod
+  
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: vesta-ecs-cluster
+
+  EcsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: vesta-taskdef
+
+      RequiresCompatibilities:
+        - FARGATE
+
+      NetworkMode: awsvpc
+
+      Cpu: '256'
+      Memory: '512'
+
+      ExecutionRoleArn: arn:aws:iam::473427586283:role/ecsTaskExecutionRole
+
+      ContainerDefinitions:
+        - Name: app
+          Image: 473427586283.dkr.ecr.ap-northeast-1.amazonaws.com/my-nginx:latest
+          Essential: true
+
+          PortMappings:
+            - ContainerPort: 80
+              Protocol: tcp
+
+  EcsServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS Service Security Group
+
+      VpcId: !ImportValue vpc1-id
+
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 10.0.0.0/16
+
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  EcsService:
+    Type: AWS::ECS::Service
+    DependsOn: EcsTaskDefinition
+
+    Properties:
+      ServiceName: vesta-service
+
+      Cluster: !Ref EcsCluster
+
+      TaskDefinition: !Ref EcsTaskDefinition
+
+      LaunchType: FARGATE
+
+      DesiredCount: 1
+
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+
+          Subnets:
+            - !ImportValue subnet2a-id
+            - !ImportValue subnet2c-id
+            - !ImportValue subnet2d-id
+
+          SecurityGroups:
+            - !Ref EcsServiceSecurityGroup
+
+      LoadBalancers:
+        - TargetGroupArn: !Ref NlbTargetGroup
+          ContainerName: app
+          ContainerPort: 80
+
 
 Outputs:
 
@@ -148,7 +227,17 @@ Outputs:
     Value: !Ref RestApi
     Export:
       Name: Vesta-RestApiId
-
+  
   ApiUrl:
     Description: API Gateway URL
     Value: !Sub "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  
+  clusterName:
+    Value: !Ref EcsCluster
+    Export:
+      Name: vesta-ecs-cluster
+
+  ServiceName:
+    Value: !GetAtt EcsService.Name
+    Export:
+      Name: vesta-ecs-service
