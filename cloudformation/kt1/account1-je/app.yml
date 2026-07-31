@@ -2,6 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Internal NLB + API Gateway + VPC Link
 
 Resources:
+
   #####################################
   # S3 Bucket
   #####################################
@@ -9,7 +10,7 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "${AWS::StackName}-nlb-accesslog"
-  
+
   #####################################
   # S3 Bucket Policy
   #####################################
@@ -20,35 +21,47 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
+          - Sid: AWSLogDeliveryAclCheck
+            Effect: Allow
+            Principal:
+              Service: delivery.logs.amazonaws.com
+            Action:
+              - s3:GetBucketAcl
+              - s3:ListBucket
+            Resource: !GetAtt NlbAccessLogBucket.Arn
+
           - Sid: AWSLogDeliveryWrite
             Effect: Allow
             Principal:
               Service: delivery.logs.amazonaws.com
             Action:
               - s3:PutObject
-            Resource:
-              - !Sub "${NlbAccessLogBucket.Arn}/*"
+            Resource: !Sub "${NlbAccessLogBucket.Arn}/AWSLogs/${AWS::AccountId}/*"
+            Condition:
+              StringEquals:
+                s3:x-amz-acl: bucket-owner-full-control
 
   #####################################
   # Network Load Balancer
-  ##################################### 
-
+  #####################################
   NetworkLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn:
+      - NlbAccessLogBucketPolicy
     Properties:
       Name: vesta-internal-nlb
       Type: network
       Scheme: internal
 
       LoadBalancerAttributes:
-       - Key: access_logs.s3.enabled
-         Value: "true"
+        - Key: access_logs.s3.enabled
+          Value: "true"
 
-       - Key: access_logs.s3.bucket
-         Value: !Ref NlbAccessLogBucket
+        - Key: access_logs.s3.bucket
+          Value: !Ref NlbAccessLogBucket
 
-       - Key: access_logs.s3.prefix
-         Value: nlb
+        - Key: access_logs.s3.prefix
+          Value: nlb
 
       Subnets:
         - !ImportValue subnet1a-id
@@ -75,13 +88,10 @@ Resources:
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref NlbTargetGroup
-  
 
-  
   #####################################
   # API Gateway VPC Link
   #####################################
-
   ApiGatewayVpcLink:
     Type: AWS::ApiGateway::VpcLink
     Properties:
@@ -92,7 +102,6 @@ Resources:
   #####################################
   # REST API
   #####################################
-
   RestApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
@@ -101,7 +110,6 @@ Resources:
   #####################################
   # Proxy Resource
   #####################################
-
   ApiResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -112,7 +120,6 @@ Resources:
   #####################################
   # Proxy Method
   #####################################
-
   ApiMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -143,7 +150,6 @@ Resources:
   #####################################
   # Deployment
   #####################################
-
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
@@ -154,14 +160,13 @@ Resources:
   #####################################
   # Stage
   #####################################
-
   ApiStage:
     Type: AWS::ApiGateway::Stage
     Properties:
       RestApiId: !Ref RestApi
       DeploymentId: !Ref ApiDeployment
       StageName: prod
-  
+
   EcsCluster:
     Type: AWS::ECS::Cluster
     Properties:
@@ -209,10 +214,10 @@ Resources:
           CidrIp: 0.0.0.0/0
 
   EcsService:
-    Type: AWS::ECS::Service
     DependsOn:
       - EcsTaskDefinition
       - NlbListener
+    Type: AWS::ECS::Service
 
     Properties:
       ServiceName: vesta-service
@@ -242,7 +247,6 @@ Resources:
           ContainerName: app
           ContainerPort: 80
 
-
 Outputs:
 
   NlbArn:
@@ -268,11 +272,11 @@ Outputs:
     Value: !Ref RestApi
     Export:
       Name: Vesta-RestApiId
-  
+
   ApiUrl:
     Description: API Gateway URL
     Value: !Sub "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
-  
+
   clusterName:
     Value: !Ref EcsCluster
     Export:
