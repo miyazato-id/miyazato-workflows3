@@ -170,9 +170,10 @@ Resources:
   ApiGatewayLogSubscription:
     Type: AWS::Logs::SubscriptionFilter
     DependsOn:
-      - ApiGatewayAccessLogGroup          # ロググループの作成完了を待つ
-      - ApiGatewayLogDeliveryStream       # Firehoseの作成完了を待つ
-      - LogsToFirehoseRole                # 転送用IAMロールの作成完了を待つ
+      - ApiGatewayAccessLogGroup
+      - ApiGatewayLogDeliveryStream    
+      - LogsToFirehoseRole                
+      - ApiStage                         
     Properties:
       LogGroupName: !Ref ApiGatewayAccessLogGroup
       FilterPattern: ""
