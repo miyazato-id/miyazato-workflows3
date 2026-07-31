@@ -1,63 +1,19 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Internal NLB + API Gateway + VPC Link-Fix Typo V2
+Description: Internal NLB + API Gateway + VPC Link
 
 Resources:
 
   #####################################
-  # API Gateway Access Logs
+  # S3 Bucket
   #####################################
-
-  ApiGatewayAccessLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /aws/apigateway/accesslogs
-      RetentionInDays: 90
-
-  ApiGatewayCloudWatchRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: apigateway.amazonaws.com
-            Action: sts:AssumeRole
-
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
-
-  ApiGatewayAccount:
-    Type: AWS::ApiGateway::Account
-    Properties:
-      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchRole.Arn
-
-  #####################################
-  # NLB Access Log S3 Bucket
-  #####################################
-
   NlbAccessLogBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub "${AWS::StackName}-nlb-accesslog"
-      VersioningConfiguration:
-        Status: Enabled
 
   #####################################
-  # API Gateway Log S3 Bucket (一時無効化)
+  # S3 Bucket Policy
   #####################################
-
-  # ApiGatewayLogBucket:
-  #   Type: AWS::S3::Bucket
-  #   Properties:
-  #     BucketName: !Sub "${AWS::StackName}-apigw-accesslog"
-  #     VersioningConfiguration:
-  #       Status: Enabled
-
-  #####################################
-  # NLB Bucket Policy
-  #####################################
-
   NlbAccessLogBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -68,7 +24,7 @@ Resources:
           - Sid: AWSLogDeliveryAclCheck
             Effect: Allow
             Principal:
-              Service: logdelivery.elasticloadbalancing.amazonaws.com
+              Service: delivery.logs.amazonaws.com
             Action:
               - s3:GetBucketAcl
               - s3:ListBucket
@@ -77,7 +33,7 @@ Resources:
           - Sid: AWSLogDeliveryWrite
             Effect: Allow
             Principal:
-              Service: logdelivery.elasticloadbalancing.amazonaws.com
+              Service: delivery.logs.amazonaws.com
             Action:
               - s3:PutObject
             Resource: !Sub "${NlbAccessLogBucket.Arn}/*"
@@ -86,110 +42,12 @@ Resources:
                 s3:x-amz-acl: bucket-owner-full-control
 
   #####################################
-  # Firehose IAM Role (一時無効化)
-  #####################################
-
-  # FirehoseRole:
-  #   Type: AWS::IAM::Role
-  #   Properties:
-  #     AssumeRolePolicyDocument:
-  #       Version: '2012-10-17'
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service: ://amazonaws.com
-  #           Action: sts:AssumeRole
-  # 
-  #     Policies:
-  #       - PolicyName: FirehoseS3Policy
-  #         PolicyDocument:
-  #           Version: '2012-10-17'
-  #           Statement:
-  #             - Effect: Allow
-  #               Action:
-  #                 - s3:AbortMultipartUpload
-  #                 - s3:GetBucketLocation
-  #                 - s3:GetObject
-  #                 - s3:ListBucket
-  #                 - s3:ListBucketMultipartUploads
-  #                 - s3:PutObject
-  #               Resource:
-  #                 - !GetAtt ApiGatewayLogBucket.Arn
-  #                 - !Sub "${ApiGatewayLogBucket.Arn}/*"
-
-  #####################################
-  # Firehose Delivery Stream (一時無効化)
-  #####################################
-
-  # ApiGatewayLogDeliveryStream:
-  #   Type: AWS::KinesisFirehose::DeliveryStream
-  #   Properties:
-  #     DeliveryStreamName: !Sub "${AWS::StackName}-apigw-delivery-stream"
-  #     DeliveryStreamType: DirectPut
-  # 
-  #     ExtendedS3DestinationConfiguration:
-  #       BucketARN: !GetAtt ApiGatewayLogBucket.Arn
-  #       Prefix: apigateway/
-  #       ErrorOutputPrefix: errors/
-  #       BufferingHints:
-  #         IntervalInSeconds: 60
-  #         SizeInMBs: 5
-  #       CompressionFormat: GZIP
-  #       RoleARN: !GetAtt FirehoseRole.Arn
-
-  #####################################
-  # CloudWatch Logs -> Firehose Role (一時無効化)
-  #####################################
-
-  # LogsToFirehoseRole:
-  #   Type: AWS::IAM::Role
-  #   Properties:
-  #     AssumeRolePolicyDocument:
-  #       Version: '2012-10-17'
-  #       Statement:
-  #         - Effect: Allow
-  #           Principal:
-  #             Service: ://amazonaws.com
-  #           Action: sts:AssumeRole
-  # 
-  #     Policies:
-  #       - PolicyName: CWLogsToFirehose
-  #         PolicyDocument:
-  #           Version: '2012-10-17'
-  #           Statement:
-  #             - Effect: Allow
-  #               Action:
-  #                 - firehose:PutRecord
-  #                 - firehose:PutRecordBatch
-  #               Resource: !Sub "arn:${AWS::Partition}:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${AWS::StackName}-apigw-delivery-stream"
-
-  #####################################
-  # CloudWatch Logs Subscription (一時無効化)
-  #####################################
-
-  # ApiGatewayLogSubscription:
-  #   Type: AWS::Logs::SubscriptionFilter
-  #   DependsOn:
-  #     - ApiGatewayAccessLogGroup
-  #     - ApiGatewayLogDeliveryStream
-  #     - LogsToFirehoseRole
-  #     - ApiStage
-  # 
-  #   Properties:
-  #     LogGroupName: !Ref ApiGatewayAccessLogGroup
-  #     FilterPattern: ""
-  #     DestinationArn: !Sub "arn:${AWS::Partition}:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${AWS::StackName}-apigw-delivery-stream"
-  #     RoleArn: !GetAtt LogsToFirehoseRole.Arn
-
-  #####################################
   # Network Load Balancer
   #####################################
-
   NetworkLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     DependsOn:
       - NlbAccessLogBucketPolicy
-
     Properties:
       Name: vesta-internal-nlb
       Type: network
@@ -210,13 +68,8 @@ Resources:
         - !ImportValue subnet1c-id
         - !ImportValue subnet1d-id
 
-  #####################################
-  # Target Group
-  #####################################
-
   NlbTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
-
     Properties:
       Name: vesta-tg
       TargetType: ip
@@ -226,18 +79,12 @@ Resources:
       HealthCheckProtocol: TCP
       HealthCheckPort: traffic-port
 
-  #####################################
-  # Listener
-  #####################################
-
   NlbListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
-
     Properties:
       LoadBalancerArn: !Ref NetworkLoadBalancer
       Protocol: TCP
       Port: 80
-
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref NlbTargetGroup
@@ -245,33 +92,26 @@ Resources:
   #####################################
   # API Gateway VPC Link
   #####################################
-
   ApiGatewayVpcLink:
     Type: AWS::ApiGateway::VpcLink
-
     Properties:
       Name: my-vpc-link
-
       TargetArns:
         - !Ref NetworkLoadBalancer
 
   #####################################
   # REST API
   #####################################
-
   RestApi:
     Type: AWS::ApiGateway::RestApi
-
     Properties:
       Name: MyRestApi
 
   #####################################
   # Proxy Resource
   #####################################
-
   ApiResource:
     Type: AWS::ApiGateway::Resource
-
     Properties:
       RestApiId: !Ref RestApi
       ParentId: !GetAtt RestApi.RootResourceId
@@ -280,14 +120,13 @@ Resources:
   #####################################
   # Proxy Method
   #####################################
-
   ApiMethod:
     Type: AWS::ApiGateway::Method
-
     Properties:
       RestApiId: !Ref RestApi
       ResourceId: !Ref ApiResource
       HttpMethod: ANY
+
       AuthorizationType: NONE
 
       RequestParameters:
@@ -295,44 +134,155 @@ Resources:
 
       Integration:
         Type: HTTP_PROXY
-        IntegrationHttpMethod: ANY
+        IntegrationHttpMethod: GET
 
         Uri:
-         Fn::Sub:
-          - "http://${NlbDnsName}/{proxy}"
-          - NlbDnsName: !GetAtt NetworkLoadBalancer.DNSName
+          Fn::Sub:
+            - 'http://${NlbDnsName}/{proxy}'
+            - NlbDnsName: !GetAtt NetworkLoadBalancer.DNSName
 
         ConnectionType: VPC_LINK
         ConnectionId: !Ref ApiGatewayVpcLink
 
         RequestParameters:
-          integration.request.path.proxy: "method.request.path.proxy"
+          integration.request.path.proxy: 'method.request.path.proxy'
 
   #####################################
   # Deployment
   #####################################
-
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
-
     DependsOn:
       - ApiMethod
-
     Properties:
       RestApiId: !Ref RestApi
 
   #####################################
   # Stage
   #####################################
-
   ApiStage:
     Type: AWS::ApiGateway::Stage
-    DependsOn:
-      - ApiGatewayAccount
     Properties:
       RestApiId: !Ref RestApi
       DeploymentId: !Ref ApiDeployment
       StageName: prod
-      AccessLogSetting:
-        DestinationArn: !GetAtt ApiGatewayAccessLogGroup.Arn
-        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","caller":"$context.identity.caller","user":"$context.identity.user","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength"}'
+
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: vesta-ecs-cluster
+
+  EcsTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: vesta-taskdef
+
+      RequiresCompatibilities:
+        - FARGATE
+
+      NetworkMode: awsvpc
+
+      Cpu: '256'
+      Memory: '512'
+
+      ExecutionRoleArn: arn:aws:iam::473427586283:role/ecsTaskExecutionRole
+
+      ContainerDefinitions:
+        - Name: app
+          Image: 473427586283.dkr.ecr.ap-northeast-1.amazonaws.com/my-nginx:latest
+          Essential: true
+
+          PortMappings:
+            - ContainerPort: 80
+              Protocol: tcp
+
+  EcsServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS Service Security Group
+
+      VpcId: !ImportValue vpc1-id
+
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 10.0.0.0/16
+
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  EcsService:
+    DependsOn:
+      - EcsTaskDefinition
+      - NlbListener
+    Type: AWS::ECS::Service
+
+    Properties:
+      ServiceName: vesta-service
+
+      Cluster: !Ref EcsCluster
+
+      TaskDefinition: !Ref EcsTaskDefinition
+
+      LaunchType: FARGATE
+
+      DesiredCount: 1
+
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+
+          Subnets:
+            - !ImportValue subnet2a-id
+            - !ImportValue subnet2c-id
+            - !ImportValue subnet2d-id
+
+          SecurityGroups:
+            - !Ref EcsServiceSecurityGroup
+
+      LoadBalancers:
+        - TargetGroupArn: !Ref NlbTargetGroup
+          ContainerName: app
+          ContainerPort: 80
+
+Outputs:
+
+  NlbArn:
+    Description: Network Load Balancer ARN
+    Value: !Ref NetworkLoadBalancer
+    Export:
+      Name: vesta-nlb-arn
+
+  NlbDns:
+    Description: Network Load Balancer DNS Name
+    Value: !GetAtt NetworkLoadBalancer.DNSName
+    Export:
+      Name: vesta-nlb-dns
+
+  TargetGroupArn:
+    Description: Target Group ARN
+    Value: !Ref NlbTargetGroup
+    Export:
+      Name: vesta-tg-arn
+
+  ApiId:
+    Description: API Gateway ID
+    Value: !Ref RestApi
+    Export:
+      Name: Vesta-RestApiId
+
+  ApiUrl:
+    Description: API Gateway URL
+    Value: !Sub "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+
+  clusterName:
+    Value: !Ref EcsCluster
+    Export:
+      Name: vesta-ecs-cluster
+
+  ServiceName:
+    Value: !GetAtt EcsService.Name
+    Export:
+      Name: vesta-ecs-service
