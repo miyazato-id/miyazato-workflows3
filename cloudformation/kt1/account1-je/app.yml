@@ -21,7 +21,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: apigateway.amazonaws.com
+              Service: ://amazonaws.com
             Action: sts:AssumeRole
 
       ManagedPolicyArns:
@@ -44,15 +44,15 @@ Resources:
         Status: Enabled
 
   #####################################
-  # API Gateway Log S3 Bucket
+  # API Gateway Log S3 Bucket (一時無効化)
   #####################################
 
-  ApiGatewayLogBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub "${AWS::StackName}-apigw-accesslog"
-      VersioningConfiguration:
-        Status: Enabled
+  # ApiGatewayLogBucket:
+  #   Type: AWS::S3::Bucket
+  #   Properties:
+  #     BucketName: !Sub "${AWS::StackName}-apigw-accesslog"
+  #     VersioningConfiguration:
+  #       Status: Enabled
 
   #####################################
   # NLB Bucket Policy
@@ -68,7 +68,7 @@ Resources:
           - Sid: AWSLogDeliveryAclCheck
             Effect: Allow
             Principal:
-              Service: delivery.logs.amazonaws.com
+              Service: ://amazonaws.com
             Action:
               - s3:GetBucketAcl
               - s3:ListBucket
@@ -77,7 +77,7 @@ Resources:
           - Sid: AWSLogDeliveryWrite
             Effect: Allow
             Principal:
-              Service: delivery.logs.amazonaws.com
+              Service: ://amazonaws.com
             Action:
               - s3:PutObject
             Resource: !Sub "${NlbAccessLogBucket.Arn}/*"
@@ -86,99 +86,100 @@ Resources:
                 s3:x-amz-acl: bucket-owner-full-control
 
   #####################################
-  # Firehose IAM Role
+  # Firehose IAM Role (一時無効化)
   #####################################
 
-  FirehoseRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: firehose.amazonaws.com
-            Action: sts:AssumeRole
-
-      Policies:
-        - PolicyName: FirehoseS3Policy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:AbortMultipartUpload
-                  - s3:GetBucketLocation
-                  - s3:GetObject
-                  - s3:ListBucket
-                  - s3:ListBucketMultipartUploads
-                  - s3:PutObject
-                Resource:
-                  - !GetAtt ApiGatewayLogBucket.Arn
-                  - !Sub "${ApiGatewayLogBucket.Arn}/*"
-
-  #####################################
-  # Firehose Delivery Stream
-  #####################################
-
-  ApiGatewayLogDeliveryStream:
-    Type: AWS::KinesisFirehose::DeliveryStream
-    Properties:
-      DeliveryStreamName: !Sub "${AWS::StackName}-apigw-delivery-stream"
-      DeliveryStreamType: DirectPut
-
-      ExtendedS3DestinationConfiguration:
-        BucketARN: !GetAtt ApiGatewayLogBucket.Arn
-        Prefix: apigateway/
-        ErrorOutputPrefix: errors/
-        BufferingHints:
-          IntervalInSeconds: 60
-          SizeInMBs: 5
-        CompressionFormat: GZIP
-        RoleARN: !GetAtt FirehoseRole.Arn
+  # FirehoseRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: ://amazonaws.com
+  #           Action: sts:AssumeRole
+  # 
+  #     Policies:
+  #       - PolicyName: FirehoseS3Policy
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - s3:AbortMultipartUpload
+  #                 - s3:GetBucketLocation
+  #                 - s3:GetObject
+  #                 - s3:ListBucket
+  #                 - s3:ListBucketMultipartUploads
+  #                 - s3:PutObject
+  #               Resource:
+  #                 - !GetAtt ApiGatewayLogBucket.Arn
+  #                 - !Sub "${ApiGatewayLogBucket.Arn}/*"
 
   #####################################
-  # CloudWatch Logs -> Firehose Role
+  # Firehose Delivery Stream (一時無効化)
   #####################################
 
-  LogsToFirehoseRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: apigateway.amazonaws.com 
-            Action: sts:AssumeRole
-
-      Policies:
-        - PolicyName: CWLogsToFirehose
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - firehose:PutRecord
-                  - firehose:PutRecordBatch
-                Resource: !GetAtt ApiGatewayLogDeliveryStream.Arn
+  # ApiGatewayLogDeliveryStream:
+  #   Type: AWS::KinesisFirehose::DeliveryStream
+  #   Properties:
+  #     DeliveryStreamName: !Sub "${AWS::StackName}-apigw-delivery-stream"
+  #     DeliveryStreamType: DirectPut
+  # 
+  #     ExtendedS3DestinationConfiguration:
+  #       BucketARN: !GetAtt ApiGatewayLogBucket.Arn
+  #       Prefix: apigateway/
+  #       ErrorOutputPrefix: errors/
+  #       BufferingHints:
+  #         IntervalInSeconds: 60
+  #         SizeInMBs: 5
+  #       CompressionFormat: GZIP
+  #       RoleARN: !GetAtt FirehoseRole.Arn
 
   #####################################
-  # CloudWatch Logs Subscription
+  # CloudWatch Logs -> Firehose Role (一時無効化)
   #####################################
 
-  ApiGatewayLogSubscription:
-    Type: AWS::Logs::SubscriptionFilter
-    DependsOn:
-      - ApiGatewayAccessLogGroup
-      - ApiGatewayLogDeliveryStream    
-      - LogsToFirehoseRole                
-      - ApiStage                         
-    Properties:
-      LogGroupName: !Ref ApiGatewayAccessLogGroup
-      FilterPattern: ""
-      DestinationArn: !Sub "arn:${AWS::Partition}:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${AWS::StackName}-apigw-delivery-stream"
-      RoleArn: !GetAtt LogsToFirehoseRole.Arn
+  # LogsToFirehoseRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: ://amazonaws.com
+  #           Action: sts:AssumeRole
+  # 
+  #     Policies:
+  #       - PolicyName: CWLogsToFirehose
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - firehose:PutRecord
+  #                 - firehose:PutRecordBatch
+  #               Resource: !Sub "arn:${AWS::Partition}:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${AWS::StackName}-apigw-delivery-stream"
+
+  #####################################
+  # CloudWatch Logs Subscription (一時無効化)
+  #####################################
+
+  # ApiGatewayLogSubscription:
+  #   Type: AWS::Logs::SubscriptionFilter
+  #   DependsOn:
+  #     - ApiGatewayAccessLogGroup
+  #     - ApiGatewayLogDeliveryStream
+  #     - LogsToFirehoseRole
+  #     - ApiStage
+  # 
+  #   Properties:
+  #     LogGroupName: !Ref ApiGatewayAccessLogGroup
+  #     FilterPattern: ""
+  #     DestinationArn: !Sub "arn:${AWS::Partition}:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${AWS::StackName}-apigw-delivery-stream"
+  #     RoleArn: !GetAtt LogsToFirehoseRole.Arn
 
   #####################################
   # Network Load Balancer
@@ -326,10 +327,8 @@ Resources:
 
   ApiStage:
     Type: AWS::ApiGateway::Stage
-
     DependsOn:
       - ApiGatewayAccount
-
     Properties:
       RestApiId: !Ref RestApi
       DeploymentId: !Ref ApiDeployment
