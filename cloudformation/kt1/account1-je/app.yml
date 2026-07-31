@@ -21,7 +21,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: ://amazonaws.com
+              Service: apigateway.amazonaws.com
             Action: sts:AssumeRole
 
       ManagedPolicyArns:
@@ -68,7 +68,7 @@ Resources:
           - Sid: AWSLogDeliveryAclCheck
             Effect: Allow
             Principal:
-              Service: ://amazonaws.com
+              Service: logdelivery.elasticloadbalancing.amazonaws.com
             Action:
               - s3:GetBucketAcl
               - s3:ListBucket
@@ -77,7 +77,7 @@ Resources:
           - Sid: AWSLogDeliveryWrite
             Effect: Allow
             Principal:
-              Service: ://amazonaws.com
+              Service: logdelivery.elasticloadbalancing.amazonaws.com
             Action:
               - s3:PutObject
             Resource: !Sub "${NlbAccessLogBucket.Arn}/*"
@@ -298,9 +298,9 @@ Resources:
         IntegrationHttpMethod: ANY
 
         Uri:
-          Fn::Sub:
-            - "http://${NlbDnsName}/{proxy}"
-            - NlbDnsName: !GetAtt NetworkLoadBalancer.DNSName
+         Fn::Sub:
+          - "http://${NlbDnsName}/{proxy}"
+          - NlbDnsName: !GetAtt NetworkLoadBalancer.DNSName
 
         ConnectionType: VPC_LINK
         ConnectionId: !Ref ApiGatewayVpcLink
