@@ -2,10 +2,36 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Internal NLB + API Gateway + VPC Link
 
 Resources:
+  #####################################
+  # S3 Bucket
+  #####################################
+  NlbAccessLogBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-nlb-accesslog"
+  
+  #####################################
+  # S3 Bucket Policy
+  #####################################
+  NlbAccessLogBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref NlbAccessLogBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AWSLogDeliveryWrite
+            Effect: Allow
+            Principal:
+              Service: delivery.logs.amazonaws.com
+            Action:
+              - s3:PutObject
+            Resource:
+              - !Sub "${NlbAccessLogBucket.Arn}/*"
 
   #####################################
   # Network Load Balancer
-  #####################################
+  ##################################### 
 
   NetworkLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -13,6 +39,17 @@ Resources:
       Name: vesta-internal-nlb
       Type: network
       Scheme: internal
+
+      LoadBalancerAttributes:
+       - Key: access_logs.s3.enabled
+         Value: "true"
+
+       - Key: access_logs.s3.bucket
+         Value: !Ref NlbAccessLogBucket
+
+       - Key: access_logs.s3.prefix
+         Value: nlb
+
       Subnets:
         - !ImportValue subnet1a-id
         - !ImportValue subnet1c-id
@@ -38,7 +75,9 @@ Resources:
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref NlbTargetGroup
+  
 
+  
   #####################################
   # API Gateway VPC Link
   #####################################
