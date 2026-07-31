@@ -2,6 +2,35 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Internal NLB + API Gateway + VPC Link
 
 Resources:
+   #####################################
+  # API Gateway Access Logs
+  #####################################
+
+  ApiGatewayAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/apigateway/accesslogs
+      RetentionInDays: 90
+
+  ApiGatewayCloudWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs
+
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchRole.Arn
+
 
   #####################################
   # S3 Bucket
@@ -162,11 +191,37 @@ Resources:
   #####################################
   ApiStage:
     Type: AWS::ApiGateway::Stage
+
+    DependsOn:
+      - ApiGatewayAccount
+      - ApiGatewayAccessLogGroup
+
     Properties:
       RestApiId: !Ref RestApi
       DeploymentId: !Ref ApiDeployment
       StageName: prod
 
+      AccessLogSetting:
+        DestinationArn: !GetAtt ApiGatewayAccessLogGroup.Arn
+
+        Format: >
+          {
+            "requestId":"$context.requestId",
+            "ip":"$context.identity.sourceIp",
+            "httpMethod":"$context.httpMethod",
+            "resourcePath":"$context.resourcePath",
+            "status":"$context.status"
+          }
+
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          LoggingLevel: INFO
+          MetricsEnabled: true
+
+ #####################################
+  # ECS cluster, task definition, and service
+  #####################################
   EcsCluster:
     Type: AWS::ECS::Cluster
     Properties:
