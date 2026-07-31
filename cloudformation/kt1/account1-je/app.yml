@@ -124,6 +124,7 @@ Resources:
   ApiGatewayLogDeliveryStream:
     Type: AWS::KinesisFirehose::DeliveryStream
     Properties:
+      DeliveryStreamName: !Sub "${AWS::StackName}-apigw-delivery-stream"
       DeliveryStreamType: DirectPut
 
       ExtendedS3DestinationConfiguration:
@@ -175,7 +176,7 @@ Resources:
     Properties:
       LogGroupName: !Ref ApiGatewayAccessLogGroup
       FilterPattern: ""
-      DestinationArn: !GetAtt ApiGatewayLogDeliveryStream.Arn
+      DestinationArn: !Sub "arn:${AWS::Partition}:firehose:${AWS::Region}:${AWS::AccountId}:deliverystream/${AWS::StackName}-apigw-delivery-stream"
       RoleArn: !GetAtt LogsToFirehoseRole.Arn
 
   #####################################
