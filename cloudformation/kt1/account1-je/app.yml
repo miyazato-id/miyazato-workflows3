@@ -171,7 +171,9 @@ Resources:
 
   EcsService:
     Type: AWS::ECS::Service
-    DependsOn: EcsTaskDefinition
+    DependsOn:
+      - EcsTaskDefinition
+      - NlbListener
 
     Properties:
       ServiceName: vesta-service
