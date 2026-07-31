@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Internal NLB + API Gateway + VPC Link
+Description: Internal NLB + API Gateway + VPC Link-Fix Typo V2
 
 Resources:
 
