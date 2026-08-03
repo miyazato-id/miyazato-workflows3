@@ -160,12 +160,40 @@ Resources:
   #####################################
   # Stage
   #####################################
+  # ApiStage:
+  #   Type: AWS::ApiGateway::Stage
+  #   Properties:
+  #     RestApiId: !Ref RestApi
+  #     DeploymentId: !Ref ApiDeployment
+  #     StageName: prod
   ApiStage:
     Type: AWS::ApiGateway::Stage
     Properties:
       RestApiId: !Ref RestApi
       DeploymentId: !Ref ApiDeployment
       StageName: prod
+
+    AccessLogSetting:
+      DestinationArn: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/apigateway/welcome
+      Format: >-
+        {
+          "requestId":"$context.requestId",
+          "ip":"$context.identity.sourceIp",
+          "requestTime":"$context.requestTime",
+          "httpMethod":"$context.httpMethod",
+          "resourcePath":"$context.resourcePath",
+          "status":"$context.status",
+          "protocol":"$context.protocol",
+          "responseLength":"$context.responseLength",
+          "integrationError":"$context.integrationErrorMessage"
+        }
+
+    MethodSettings:
+      - ResourcePath: "/*"
+        HttpMethod: "*"
+        LoggingLevel: INFO
+        DataTraceEnabled: false
+        MetricsEnabled: true
 
   EcsCluster:
     Type: AWS::ECS::Cluster
