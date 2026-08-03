@@ -175,18 +175,7 @@ Resources:
 
       AccessLogSetting:
         DestinationArn: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/apigateway/welcome
-        Format: >-
-          {
-            "requestId":"$context.requestId",
-            "ip":"$context.identity.sourceIp",
-            "requestTime":"$context.requestTime",
-            "httpMethod":"$context.httpMethod",
-            "resourcePath":"$context.resourcePath",
-            "status":"$context.status",
-            "protocol":"$context.protocol",
-            "responseLength":"$context.responseLength",
-            "integrationError":"$context.integrationErrorMessage"
-          }
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","protocol":"$context.protocol","responseLength":"$context.responseLength","integrationError":"$context.integrationErrorMessage"}'
 
       MethodSettings:
         - ResourcePath: "/*"
